@@ -1,14 +1,18 @@
 /**
  * creates a backup share
- * 
+ *
  * @author Peter Krebs <p.krebs@w4c.at>
  */
-define pitlinz_hetzner::backupshare(
+define pitlinz_hetzner::storage::backup(
     $mntpoint   = $name,
     $user       = '',
     $passwd     = '',
     $mode	    = '0755'
 ) {
+
+    if !$user or !$passwd {
+        fail("user and/or passwd not set")
+    }
 
     if !defined(Package['cifs-utils']) {
         package{'cifs-utils':

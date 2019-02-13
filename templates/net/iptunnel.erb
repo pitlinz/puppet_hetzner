@@ -1,0 +1,91 @@
+#!/bin/bash
+#
+# this file is handled by puppte do not edit
+# changes will bie overwritten
+#
+# tunnel <%= @name %> id <%= @netid %>
+#
+# connect with <%= @rnetwork %>
+# via <%= @tremoteip %> - <%= @tlocalip %>
+#
+
+. /etc/environment
+
+if [ "$2" == "-v" ]; then
+    echo "$0 $@"
+    set -x
+fi
+
+case "$1" in
+    start)
+        iptables -N HETZNER &>/dev/null
+        if [ $? == 0 ]; then
+            iptables -A INPUT -j HETZNER -m comment --comment "PITLINZ_HETZNER"
+        fi
+
+        if [ `iptables -L HETZNER | grep -c <%= @remoteip %>` -lt 1 ]; then
+            iptables -A HETZNER -s <%= @remoteip %> -j ACCEPT
+        fi
+
+        if [ `iptunnel show | grep -c "^<%= @ifname %>"` -gt 0 ]; then
+            $0 stop
+        fi
+
+        ip tunnel add <%= @ifname %> mode gre local <%= @localip %> remote <%= @remoteip %> ttl 255
+
+        ifconfig <%= @ifname %> <%= @tlocalip %>/30 up
+        ifconfig <%= @ifname %> pointopoint <%= @tremoteip %>
+        ifconfig <%= @ifname %> multicast
+
+        route add -net <%= @rnetwork %> netmask <%= @rnetmask %> gw <%= @tremoteip %> dev <%= @ifname %> metric 0
+
+        iptables -N HTUNNEL &>/dev/null
+        iptables -A INPUT -i <%= @ifname %> -j HTUNNEL -m comment --comment "HT_<%= @ifname %>_FILTER"
+        iptables -A FORWARD -i <%= @ifname %> -j HTUNNEL -m comment --comment "HT_<%= @ifname %>_FILTER"
+        iptables -A FORWARD -o <%= @ifname %> -j HTUNNEL -m comment --comment "HT_<%= @ifname %>_FILTER"
+
+        iptables -A HTUNNEL -s  <%= @rnetwork %>/<%= @rnetmask %> -j ACCEPT  -m comment --comment "HT_<%= @ifname %>_FILTER"
+        iptables -A HTUNNEL -s  <%= @tnetwork %>/30 -j ACCEPT  -m comment --comment "HT_<%= @ifname %>_FILTER"
+        iptables -A HTUNNEL -d  <%= @tnetwork %>/30 -j ACCEPT  -m comment --comment "HT_<%= @ifname %>_FILTER"
+
+        iptables -t nat -N HTUNNEL  &>/dev/null
+        iptables -t nat -I POSTROUTING -o <%= @ifname %> -j HTUNNEL -m comment --comment "HT_<%= @ifname %>_NAT"
+        iptables -t nat -A HTUNNEL -d <%= @rnetwork %>/<%= @rnetmask %> -j ACCEPT -m comment --comment "HT_<%= @ifname %>_NAT"
+        iptables -t nat -A HTUNNEL -d <%= @tnetwork %>/30 -j ACCEPT -m comment --comment "HT_<%= @ifname %>_NAT"
+        ;;
+    stop)
+
+        iptables-save | grep "HT_<%= @ifname %>_FILTER" > /tmp/HTFILTER
+        sed -i 's/-A/iptables -D/g' /tmp/HTFILTER
+        . /tmp/HTFILTER
+
+        iptables-save | grep "HT_<%= @ifname %>_NAT" > /tmp/HTNAT
+        sed -i 's/-A/iptables -t nat -D/g' /tmp/HTNAT
+        . /tmp/HTNAT
+
+        route del -net <%= @rnetwork %> netmask <%= @rnetmask %> gw <%= @tremoteip %> dev <%= @ifname %> metric 0
+
+        ifconfig <%= @ifname %> down
+        ip tunnel del <%= @ifname %>
+        ;;
+    status)
+        if [ `iptunnel show | grep -c "^<%= @ifname %>:"` -lt 1 ]; then
+            echo "tunnel <%= @ifname %> not configured"
+            exit 2
+        fi
+        if [ `ifconfig | grep -c <%= @ifname %>` -lt 1 ]; then
+            echo "tunnel interface <%= @ifname %> not up"
+            exit 2
+        fi
+        ping -c 3 <%= @tremoteip %>
+        if [ $? != 0 ]; then
+            echo "transfer network <%= @tremoteip %> not pingable "
+            exit 3
+        fi
+
+        ;;
+    restart)
+        $0 stop $2
+        $0 start $2
+        ;;
+esac
