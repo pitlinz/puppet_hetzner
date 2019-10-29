@@ -5,8 +5,8 @@
   "uploadOnSave": true,
   "useAtomicWrites": true,
   "deleteLocal": false,
-  "hostname": "impkvm1",
-  "port": "2210",
+  "hostname": "foreman.w4c.at",
+  "port": "2200",
   "target": "/etc/puppetlabs/code/environments/production/modules/pitlinz_hetzner",
   "ignore": [
     ".remote-sync.json",
