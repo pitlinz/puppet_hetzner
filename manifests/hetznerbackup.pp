@@ -11,7 +11,7 @@ class pitlinz_hetzner::hetznerbackup(
 ) {
 
     if $user and $passwd {
-        pitlinz_hetzner::storage::backupshare{$mntpoint:
+        pitlinz_hetzner::storage::backup{$mntpoint:
             user    => $user,
             passwd  => $passwd
         }
